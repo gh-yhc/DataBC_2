@@ -1,0 +1,76 @@
+---
+title: 'Electric Motor Temperature: 140 hrs recordings from a permanent magnet synchronous
+  motor (PMSM)'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## PMSM data source
+The source of this **PMSM** data: <https://www.kaggle.com/wkirgsn/electric-motor-temperature/downloads/electric-motor-temperature.zip/2>
+
+```{r Load packages,include=FALSE}
+library(plyr)
+library(magrittr)
+library(dplyr)
+library(ggplot2)
+library(caret)
+library(lubridate)
+library(reshape2)
+```
+
+```{r Load data,results='hide'}
+## Load data
+pmsm0<- data.frame(read.csv("~/Downloads/pmsm_temperature_data.csv"))
+id_table<-table(pmsm0$profile_id)
+pmsm<-pmsm0[1:id_table[1],]
+```
+
+```{r Take a quick look at data,results='hide'}
+## Take a quick look at data
+pmsm %>% dim
+str(pmsm)
+names(pmsm)
+pmsm %>% tail(30)
+pmsm %>% mutate(time=seq(length.out=dim(pmsm)[1])*0.5 ) -> pmsm
+```
+
+In this study, "motor_speed" and "torque" are the target quantities controlled by current and voltage (both are two dimensional) strategically.
+
+### Plots: Time series
+First, since all the data are time series, I found that plotting all data points of variables pairwisely may be confusing because it's often to see a multi-valued function.
+Therefore, here they are plotted as function of time to show their temporal variations. 
+```{r fig.width=10, fig.height=12, message=F, warning=F}
+par(mfrow=c(4,1))
+plot(pmsm$time,pmsm$pm,pch=20,cex=.1)
+plot(pmsm$time,pmsm$stator_yoke,pch=20,cex=.1)
+plot(pmsm$time,pmsm$coolant,pch=20,cex=.1)
+plot(pmsm$time,pmsm$ambient,pch=20,cex=.1)
+```
+
+In the following a smoothed ambient temperature curve (because it's too noisy) is shown, we may be able to understand better how the heat is dissipated if we compare it to the coolant temperature variation.
+```{r fig.width=10, fig.height=6, message=F, warning=F}
+qplot(time,ambient, data=pmsm,geom=c("point","smooth")) # smooth:loess
+```
+
+### Plots: Causal relations
+Torque is produced by current, here we take a look at relevant causal relations.
+```{r fig.width=10, fig.height=5}
+pmsm %>% select( c(time,torque,motor_speed,i_d,i_q,u_d,u_q) ) -> pmsm1
+pmsm1 <- melt(pmsm1,id="time")
+ggplot(pmsm1, aes(x=time, y=value, color=variable))+ geom_line() +ggtitle("Torque, Motor speed, Current and Voltage")
+```
+
+### Vector plot of the current
+It is interesting that the torque follows i_q closely, but not i_d. So it may help if we make a vector plot of them.
+```{r fig.width=6, fig.height=6, message=F, warning=F}
+library(OceanView)
+vectorplot(pmsm$i_d,pmsm$i_q)
+```
+
+### Conclusions
+1. Temperatures are the resulting quantities induced by engineering controlling variables. Since in here heat transfer/diffusion rate is probably much lower than the sampling frequency (2 Hz), it is reasonable to expect a delayed effect of temperature responding to those controlling factors.
+2. The ultimate goal is to apply machine learning to mimic human driving behavior without overheating the vehicle parts!
+
